@@ -899,6 +899,9 @@ struct fuse_conn {
 	/** Version counter for evict inode */
 	atomic64_t evict_ctr;
 
+	/** Version counter for missed invalidations due to races */
+	atomic64_t missed_inval_ctr;
+
 	/* maximum file name length */
 	u32 name_max;
 
@@ -1016,6 +1019,11 @@ static inline u64 fuse_get_attr_version(struct fuse_conn *fc)
 static inline u64 fuse_get_evict_ctr(struct fuse_conn *fc)
 {
 	return atomic64_read(&fc->evict_ctr);
+}
+
+static inline u64 fuse_get_missed_inval_ctr(struct fuse_conn *fc)
+{
+	return atomic64_read(&fc->missed_inval_ctr);
 }
 
 static inline bool fuse_stale_inode(const struct inode *inode, int generation,

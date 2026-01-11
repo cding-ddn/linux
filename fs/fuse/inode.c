@@ -589,8 +589,10 @@ int fuse_reverse_inval_inode(struct fuse_conn *fc, u64 nodeid,
 	pgoff_t pg_end;
 
 	inode = fuse_ilookup(fc, nodeid, NULL);
-	if (!inode)
+	if (!inode) {
+		atomic64_inc(&fc->missed_inval_ctr);
 		return -ENOENT;
+	}
 
 	fi = get_fuse_inode(inode);
 	spin_lock(&fi->lock);
@@ -1034,6 +1036,7 @@ void fuse_conn_init(struct fuse_conn *fc, struct fuse_mount *fm,
 
 	atomic64_set(&fc->attr_version, 1);
 	atomic64_set(&fc->evict_ctr, 1);
+	atomic64_set(&fc->missed_inval_ctr, 1);
 	get_random_bytes(&fc->scramble_key, sizeof(fc->scramble_key));
 	fc->pid_ns = get_pid_ns(task_active_pid_ns(current));
 	fc->user_ns = get_user_ns(user_ns);

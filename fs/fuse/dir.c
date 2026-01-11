@@ -366,9 +366,11 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name
 		     struct fuse_entry_out *outarg, struct inode **inode)
 {
 	struct fuse_mount *fm = get_fuse_mount_super(sb);
+	struct fuse_conn *fc = fm->fc;
 	FUSE_ARGS(args);
 	struct fuse_forget_link *forget;
 	u64 attr_version, evict_ctr;
+	u64 missed_inval_ctr = fuse_get_missed_inval_ctr(fc);
 	int err;
 
 	*inode = NULL;
@@ -407,6 +409,9 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name
 		fuse_queue_forget(fm->fc, forget, outarg->nodeid, 1);
 		goto out;
 	}
+	if (missed_inval_ctr != fuse_get_missed_inval_ctr(fc))
+		fuse_invalidate_attr(*inode);
+
 	err = 0;
 
  out_put_forget:
@@ -620,6 +625,8 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	int err;
 	struct inode *inode;
 	struct fuse_mount *fm = get_fuse_mount(dir);
+	struct fuse_conn *fc = fm->fc;
+	u64 missed_inval_ctr = fuse_get_missed_inval_ctr(fc);
 	FUSE_ARGS(args);
 	struct fuse_forget_link *forget;
 	struct fuse_create_in inarg;
@@ -698,6 +705,10 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	}
 	kfree(forget);
 	d_instantiate(entry, inode);
+
+	if (missed_inval_ctr != fuse_get_missed_inval_ctr(fc))
+		fuse_invalidate_attr(inode);
+
 	fuse_change_entry_timeout(entry, &outentry);
 	fuse_dir_changed(dir);
 	err = generic_file_open(inode, file);
@@ -785,6 +796,8 @@ static int create_new_entry(struct fuse_mount *fm, struct fuse_args *args,
 	struct dentry *d;
 	int err;
 	struct fuse_forget_link *forget;
+	struct fuse_conn *fc = fm->fc;
+	u64 missed_inval_ctr = fuse_get_missed_inval_ctr(fc);
 
 	if (fuse_is_bad(dir))
 		return -EIO;
@@ -829,6 +842,9 @@ static int create_new_entry(struct fuse_mount *fm, struct fuse_args *args,
 	d = d_splice_alias(inode, entry);
 	if (IS_ERR(d))
 		return PTR_ERR(d);
+
+	if (missed_inval_ctr != fuse_get_missed_inval_ctr(fc))
+		fuse_invalidate_attr(inode);
 
 	if (d) {
 		fuse_change_entry_timeout(d, &outarg);
